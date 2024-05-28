@@ -1,9 +1,7 @@
 import wx
 import wx.adv
-import datetime
-import subprocess
-from wx.lib.embeddedimage import PyEmbeddedImage
 from utils import Battery
+from utils import PowerManagement
 
 def create_menu_item(menu, label, callback_function):
         item = wx.MenuItem(menu, -1, label)
@@ -13,18 +11,21 @@ def create_menu_item(menu, label, callback_function):
 
 class TaskBarIcon(wx.adv.TaskBarIcon):
     battery = None
+    power_management = None
     def __init__(self, frame):
         self.frame = frame
         super(TaskBarIcon, self).__init__()
         self.battery = Battery()
+        self.power_management = PowerManagement()
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.OnTimer, self.timer)
+        self.Bind(wx.adv.EVT_TASKBAR_LEFT_DOWN, self.OnLeftDown) 
         self.timer.Start(2000)
         self.OnTimer(None)
 
     def CreatePopupMenu(self):
         menu = wx.Menu()
-        create_menu_item(menu, "Hello", self.OnToggle)
+        create_menu_item(menu, f"Mode: {self.power_management.get_performance_adjustment_mode()}", self.OnToggle)
         menu.AppendSeparator()
         create_menu_item(menu, "Quit", self.OnQuit)
         return menu
@@ -66,6 +67,9 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
         self.RemoveIcon()
         wx.CallAfter(self.Destroy)
         self.frame.Close()
+
+    def OnLeftDown(self, event):
+        print ("Left click is clicked!")
 
 if __name__ == '__main__':
     app = wx.App()
