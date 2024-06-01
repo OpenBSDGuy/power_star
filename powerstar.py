@@ -3,6 +3,55 @@ import wx.adv
 from utils import Battery
 from utils import PowerManagement
 
+class TabPanel(wx.Panel):
+    def __init__(self, parent, content):
+        wx.Panel.__init__(self, parent)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        label = wx.StaticText(self, label=content)
+        sizer.Add(label, 0, wx.ALL | wx.CENTER, 5)
+        self.SetSizer(sizer)
+
+class TabPanelWithDropdown(wx.Panel):
+    def __init__(self, parent):
+        wx.Panel.__init__(self, parent)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        title = wx.StaticText(self, label="Settings")
+        title_font = title.GetFont()
+        title_font = title_font.Bold()
+        title.SetFont(title_font)
+        sizer.Add(title, 0, wx.LEFT | wx.TOP | wx.BOTTOM, 15)
+
+        label_dropdown_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        label = wx.StaticText(self, label="Select an option:")
+        label_dropdown_sizer.Add(label, 0, wx.LEFT, 30)
+
+        dropdown = wx.ComboBox(self, choices=["Option 1", "Option 2", "Option 3"], style=wx.CB_READONLY)
+        sizer.Add(dropdown, 0, wx.ALL | wx.EXPAND)
+        
+        #sizer.Add(grid_sizer, 0, wx.ALL | wx.EXPAND, 0)
+        
+        self.SetSizer(sizer)
+
+class SettingsFrame(wx.Frame):
+    def __init__(self):
+        wx.Frame.__init__(self, None, title="Settings")
+        self.SetIcon(wx.Icon("icons/charged.png", wx.BITMAP_TYPE_ICO))
+        notebook = wx.Notebook(self)
+        tab1 = TabPanel(notebook, "Content of Tab 1")
+        tab2 = TabPanel(notebook, "Content of Tab 2")
+        tab3 = TabPanel(notebook, "Content of Tab 3")
+        tab4 = TabPanelWithDropdown(notebook)
+
+        notebook.AddPage(tab1, "Tab 1")
+        notebook.AddPage(tab2, "Tab 2")
+        notebook.AddPage(tab3, "Tab 3")
+        notebook.AddPage(tab4, "Tab 4")
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(notebook, 1, wx.EXPAND)
+        self.SetSizerAndFit(sizer)
+        self.SetSize(520,510)
+
 def create_menu_item(menu, label, callback_function):
         item = wx.MenuItem(menu, -1, label)
         menu.Bind(wx.EVT_MENU, callback_function, id=item.GetId())
@@ -10,11 +59,10 @@ def create_menu_item(menu, label, callback_function):
         return item
 
 class TaskBarIcon(wx.adv.TaskBarIcon):
-    battery = None
-    power_management = None
     def __init__(self, frame):
         self.frame = frame
         super(TaskBarIcon, self).__init__()
+        self.frame = frame
         self.battery = Battery()
         self.power_management = PowerManagement()
         self.timer = wx.Timer(self)
@@ -27,6 +75,7 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
         menu = wx.Menu()
         create_menu_item(menu, f"Mode: {self.power_management.get_performance_adjustment_mode()}", self.OnToggle)
         menu.AppendSeparator()
+        create_menu_item(menu, "Settings...", self.OnSettings)
         create_menu_item(menu, "Quit", self.OnQuit)
         return menu
 
@@ -63,16 +112,32 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
         else:
             self.OnSetIcon(self, "empty.png", tooltip_text)
 
+    def OnSettings(self, event):
+        if not hasattr(self.frame, 'settings_frame') or not self.frame.settings_frame:
+            self.frame.settings_frame = SettingsFrame()
+        self.frame.settings_frame.Show()
+        self.frame.settings_frame.Raise()
+
     def OnQuit(self, event):
-        self.RemoveIcon()
-        wx.CallAfter(self.Destroy)
-        self.frame.Close()
+        wx.CallAfter(self.frame.Close)
 
     def OnLeftDown(self, event):
         print ("Left click is clicked!")
 
+class PowerStar(wx.App):
+    def OnInit(self):
+        self.frame = wx.Frame(None, -1, "Hidden Frame")
+        self.frame.settings_frame = None
+        self.taskbar_icon = TaskBarIcon(self.frame)
+        self.frame.Bind(wx.EVT_CLOSE, self.OnClose)
+        return True
+
+    def OnClose(self, event):
+        if self.frame.settings_frame:
+            self.frame.settings_frame.Destroy()
+        self.taskbar_icon.Destroy()
+        self.frame.Destroy()
+
 if __name__ == '__main__':
-    app = wx.App()
-    frame=wx.Frame(None)
-    TaskBarIcon(frame)
+    app = PowerStar(False)
     app.MainLoop()
