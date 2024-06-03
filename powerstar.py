@@ -20,18 +20,22 @@ class TabPanelWithDropdown(wx.Panel):
         title_font = title.GetFont()
         title_font = title_font.Bold()
         title.SetFont(title_font)
-        sizer.Add(title, 0, wx.LEFT | wx.TOP | wx.BOTTOM, 15)
-
-        label_dropdown_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        label = wx.StaticText(self, label="Select an option:")
-        label_dropdown_sizer.Add(label, 0, wx.LEFT, 30)
-
-        dropdown = wx.ComboBox(self, choices=["Option 1", "Option 2", "Option 3"], style=wx.CB_READONLY)
-        sizer.Add(dropdown, 0, wx.ALL | wx.EXPAND)
+        sizer.Add(title, 0, wx.LEFT | wx.TOP | wx.RIGHT, 10)
         
-        #sizer.Add(grid_sizer, 0, wx.ALL | wx.EXPAND, 0)
+        # Horizontal sizer for label and dropdown
+        label_dropdown_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        
+        label = wx.StaticText(self, label="Select an option:")
+        label_dropdown_sizer.Add(label, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 20)
+        
+        dropdown = wx.ComboBox(self, choices=["Option 1", "Option 2", "Option 3"], style=wx.CB_READONLY)
+        label_dropdown_sizer.Add(dropdown, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 5)
+        label_dropdown_sizer.Add((10, 0))
+        
+        sizer.Add(label_dropdown_sizer, 0, wx.EXPAND | wx.ALL, 5)
         
         self.SetSizer(sizer)
+
 
 class SettingsFrame(wx.Frame):
     def __init__(self):
