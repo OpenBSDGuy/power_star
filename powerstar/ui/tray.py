@@ -43,6 +43,7 @@ class Tray(QSystemTrayIcon):
         self.state: State | None = None
         self.prefs: Preferences | None = None
         self.warned = False
+        self._low_setting: tuple | None = None
         self.info_actions: list[QAction] = []
 
         self.menu = QMenu()
@@ -71,6 +72,9 @@ class Tray(QSystemTrayIcon):
         self.refresh()
 
     def settings_changed(self) -> None:
+        if (self.cfg["notify_low"], self.cfg["low_percent"]) != self._low_setting:
+            self.warned = False  # check the new level right away instead of after the next unplug
+            self._low_setting = (self.cfg["notify_low"], self.cfg["low_percent"])
         self.timer.start(self.cfg["poll_seconds"] * 1000)
         if self.state:
             self._show(self.state)

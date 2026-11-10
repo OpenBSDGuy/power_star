@@ -193,6 +193,15 @@ class TrayTest(unittest.TestCase):
         self.assertIn("Quit", texts)
         self.assertIn("82% — Plugged in, not charging", texts)
 
+    def test_new_low_level_rearms_the_warning(self):
+        t = self.tray()
+        t.warned = True
+        t.settings_changed()  # nothing low-battery related changed
+        self.assertTrue(t.warned)
+        t.cfg["low_percent"] = 40
+        t.settings_changed()
+        self.assertFalse(t.warned)
+
     def test_performance_submenu_disabled_without_apmd(self):
         self.assertFalse(self.tray(apmd_ok=False).perf_menu.isEnabled())
 

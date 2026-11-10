@@ -241,6 +241,7 @@ class Preferences(QDialog):
     def _save(self, key: str, value) -> None:
         self.cfg[key] = value
         userconfig.save(self.cfg)
+        self.status.setText("Saved")
         self.settings_changed.emit()
 
     def _user_setting(self, key: str, value: int, action) -> None:
@@ -333,7 +334,7 @@ class Preferences(QDialog):
             self.status.setText(f"{e.message}. {e.detail}".strip())
             return
         if change.empty:
-            self.status.setText("Nothing to change")
+            self.status.setText("No system settings changed (Display and General settings are saved as you change them)")
             return
         if not self.confirm(change.describe()):
             return
