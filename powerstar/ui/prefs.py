@@ -2,8 +2,9 @@
 
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGridLayout, QHBoxLayout, QLabel,
-    QMessageBox, QPushButton, QSlider, QSpinBox, QTabWidget, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel,
+    QAbstractItemView, QAbstractScrollArea, QHeaderView, QMessageBox, QPushButton, QSlider, QSpinBox, QTableWidget, QTableWidgetItem,
+    QTabWidget, QVBoxLayout, QWidget,
 )
 from PyQt6.QtCore import Qt
 
@@ -40,6 +41,9 @@ def spin(lo: int, hi: int, suffix: str = "") -> QSpinBox:
 def confirm_box(parent, lines: list[str]) -> bool:
     text = "Power Star will make these changes as root:\n\n" + "\n".join(lines)
     return QMessageBox.question(parent, "Confirm changes", text) == QMessageBox.StandardButton.Yes
+
+
+BATTERY_COLUMNS = ["Battery", "Charge", "Health", "Last full / design", "Cycles", "Rate", "Voltage", "State"]
 
 
 def split_policy(policy: str) -> tuple[str, str]:
@@ -118,28 +122,37 @@ class Preferences(QDialog):
         self._row(form, "Charge mode", self.chargemode, "hw.battery.chargemode")
         self._row(form, "Start charging below", self.chargestart, "hw.battery.chargestart")
         self._row(form, "Stop charging at", self.chargestop, "hw.battery.chargestop")
-        self.battery_grid = QGridLayout()
-        form.addRow(self.battery_grid)
+        self.battery_table = QTableWidget(0, len(BATTERY_COLUMNS))
+        self.battery_table.setHorizontalHeaderLabels(BATTERY_COLUMNS)
+        self.battery_table.verticalHeader().hide()
+        self.battery_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.battery_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.battery_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.battery_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.battery_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        # size to the contents: the whole table is always visible, never scrolled
+        self.battery_table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        self.battery_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.battery_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        form.addRow(self.battery_table)
         self.show_batteries(self.state)
         return tab
 
     def show_batteries(self, state: State) -> None:
         """(Re)fill the battery table."""
-        grid = self.battery_grid
-        while grid.count():
-            grid.takeAt(0).widget().deleteLater()
-        for col, head in enumerate(["", "Model", "Charge", "Health", "Last full / design", "Cycles", "Rate", "Voltage", "State"]):
-            grid.addWidget(QLabel(f"<b>{head}</b>"), 0, col)
+        table = self.battery_table
         fmt = lambda v, unit: "?" if v is None else f"{v:g} {unit}"
         pct = lambda v: "?" if v is None else f"{v}%"
-        for row, b in enumerate(state.sensors.batteries, 1):
-            cells = [b.name, b.model or "?", f"{pct(b.charge_percent)} ({fmt(b.remaining_wh, 'Wh')})", pct(b.health_percent),
-                     f"{fmt(b.last_full_wh, 'Wh')} / {fmt(b.design_wh, 'Wh')}", fmt(b.cycles, ""),
-                     fmt(b.rate_w, "W"), fmt(b.voltage, "V"), b.status or "?"]  # fmt: skip
-            for col, text in enumerate(cells):
-                grid.addWidget(QLabel(text), row, col)
-        if not state.sensors.batteries:
-            grid.addWidget(QLabel("No battery"), 1, 0)
+        rows = [
+            [f"{b.name} ({b.model})" if b.model else b.name, f"{pct(b.charge_percent)} ({fmt(b.remaining_wh, 'Wh')})",
+             pct(b.health_percent), f"{fmt(b.last_full_wh, 'Wh')} / {fmt(b.design_wh, 'Wh')}", fmt(b.cycles, ""),
+             fmt(b.rate_w, "W"), fmt(b.voltage, "V"), b.status or "?"]
+            for b in state.sensors.batteries
+        ] or [["No battery"] + [""] * (len(BATTERY_COLUMNS) - 1)]  # fmt: skip
+        table.setRowCount(len(rows))
+        for r, cells in enumerate(rows):
+            for c, text in enumerate(cells):
+                table.setItem(r, c, QTableWidgetItem(text))
 
     def _performance_tab(self) -> QWidget:
         tab = QWidget()
