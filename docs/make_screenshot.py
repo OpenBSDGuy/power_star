@@ -2,8 +2,8 @@
 
     QT_QPA_PLATFORM=offscreen python -m docs.make_screenshot
 
-Renders the real Preferences window (Battery tab) and tray menu from the recorded
-box output through the test fakes (nothing on the host is touched) to docs/screenshot.png.
+Renders the real Preferences window (Battery tab) and tray menu, plus one image per other tab, from the recorded
+box output through the test fakes (nothing on the host is touched) to docs/screenshot*.png.
 """
 import os
 import tempfile
@@ -63,7 +63,7 @@ def main() -> None:
     cfg = userconfig.load(Path(os.devnull))
     with mock.patch("powerstar.ui.worker.run_async", run_now), mock.patch("os.access", return_value=True):
         tray = Tray(sys, FakeElevator(), cfg)
-    prefs = Preferences(read_state(sys), cfg, sys, FakeElevator(), lambda lines: True)
+        prefs = Preferences(read_state(sys), cfg, sys, FakeElevator(), lambda lines: True)
     prefs.tabs.setCurrentIndex(0)
     prefs.resize(prefs.sizeHint())
     prefs.show()
@@ -89,6 +89,20 @@ def main() -> None:
     p.drawImage(mx + max(mw, 80) - mw, PAD + panel_h, menu)
     p.end()
     canvas.save(str(OUT))
+
+    # one image per other tab, same window size as the Battery tab
+    for i in range(1, prefs.tabs.count()):
+        prefs.tabs.setCurrentIndex(i)
+        win = xfce_window(prefs.grab().toImage(), "Power Star")
+        w, h = round(win.width() / SCALE), round(win.height() / SCALE)
+        tab = QImage((w + PAD * 2) * SCALE, (h + PAD * 2) * SCALE, QImage.Format.Format_ARGB32)
+        tab.setDevicePixelRatio(SCALE)
+        tab.fill(BG)
+        p = QPainter(tab)
+        p.drawImage(PAD, PAD, win)
+        p.end()
+        slug = prefs.tabs.tabText(i).replace("&&", "").lower().split()[0]
+        tab.save(str(OUT.with_name(f"screenshot-{slug}.png")))
 
 
 if __name__ == "__main__":

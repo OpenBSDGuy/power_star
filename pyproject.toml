@@ -21,9 +21,9 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/kasramp/power_star"
-Repository = "https://github.com/kasramp/power_star"
-Issues = "https://github.com/kasramp/power_star/issues"
+Homepage = "https://github.com/OpenBSDGuy/power_star"
+Repository = "https://github.com/OpenBSDGuy/power_star"
+Issues = "https://github.com/OpenBSDGuy/power_star/issues"
 
 [project.scripts]
 powerstar = "powerstar.cli:main"
