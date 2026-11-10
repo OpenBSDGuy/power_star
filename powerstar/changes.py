@@ -1,5 +1,6 @@
 """Turn wanted settings into the root work needed: file edits and commands."""
 
+import shlex
 from dataclasses import dataclass, field
 
 from powerstar import apmdflags, blockcpu, sysctlconf
@@ -78,7 +79,7 @@ def _validate(state: State, w: Wanted) -> None:
             raise PowerStarError("Auto sleep needs suspend or hibernate at 1-50%")
 
 
-def plan_changes(state: State, wanted: Wanted, sysctl_conf: str) -> Change:
+def plan_changes(state: State, wanted: Wanted, sysctl_conf: str, conf_mode: int = 0o644) -> Change:
     _validate(state, wanted)
     live, w = state.sysctl, wanted
     items: list[tuple[str, str]] = []  # in the order they are applied
@@ -108,6 +109,9 @@ def plan_changes(state: State, wanted: Wanted, sysctl_conf: str) -> Change:
             raise PowerStarError(f"{key} is not supported on this machine")
         if live[key] != value:
             steps.append(Step(["sysctl", f"{key}={value}"], ["sysctl", f"{key}={live[key]}"], f"Run sysctl {key}={value}"))
+        if key == "hw.setperf" and sysctlconf.current_value(text, key) != value:
+            # setperf is only writable in manual, so at boot it must come after perfpolicy
+            text = sysctlconf.disable_key(text, key)
         new = sysctlconf.set_value(text, key, value)
         if new != text:
             summary.append(f"{key}={value}")
@@ -137,11 +141,15 @@ def plan_changes(state: State, wanted: Wanted, sysctl_conf: str) -> Change:
         else:
             removed = " ".join(f"-{c}" for c in "AHL" if c in "".join(t for t in flags.split() if t.startswith("-")))
             label = f"Remove {removed} from apmd flags (it overrides hw.perfpolicy at boot)"
-        steps.append(Step(["rcctl", "set", "apmd", "flags", new_flags], ["rcctl", "set", "apmd", "flags", flags], label))
+        undo = ["rcctl", "set", "apmd", "flags", flags]
+        if sleep_changed and state.apmd_running:
+            # a failed restart leaves apmd stopped, so the flags undo also restarts it with the old flags
+            undo = ["sh", "-c", f"{shlex.join(undo)} && rcctl restart apmd"]
+        steps.append(Step(["rcctl", "set", "apmd", "flags", new_flags], undo, label))
     if sleep_changed:
-        if not state.apmd_running:
-            steps.append(Step(["rcctl", "enable", "apmd"], ["rcctl", "disable", "apmd"], "Enable apmd (it is not running)"))
+        if not state.apmd_enabled:
+            steps.append(Step(["rcctl", "enable", "apmd"], ["rcctl", "disable", "apmd"], "Enable apmd (it is not enabled)"))
         steps.append(Step(["rcctl", "restart", "apmd"], None, "Restart apmd"))
 
-    files = [FileWrite(SYSCTL_CONF, text, 0o644, ", ".join(summary))] if text != sysctl_conf else []
+    files = [FileWrite(SYSCTL_CONF, text, conf_mode, ", ".join(summary))] if text != sysctl_conf else []
     return Change(files, steps)

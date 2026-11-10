@@ -59,6 +59,7 @@ class State:
     cpu_types: set[str]
     apmd_running: bool
     apmd_flags: str
+    apmd_enabled: bool = True
 
 
 def parse_apm(out: str) -> ApmStatus:
@@ -154,11 +155,13 @@ def read_state(sys) -> State:
     dmesg = sys.read_file(DMESG_BOOT) or ""
     models = battery_models(dmesg)
     sensors.batteries = [replace(b, model=models.get(b.name)) for b in sensors.batteries]
+    flags = sys.run(["rcctl", "get", "apmd", "flags"], check=False).out.strip()
     return State(
         apm=apm,
         sensors=sensors,
         sysctl=parse_sysctl(sys.run(["sysctl", *SYSCTL_KEYS], check=False).out),
         cpu_types=cpu_types(dmesg),
         apmd_running=sys.run(["rcctl", "check", "apmd"], check=False).rc == 0,
-        apmd_flags=sys.run(["rcctl", "get", "apmd", "flags"], check=False).out.strip(),
+        apmd_flags="" if flags == "NO" else flags,  # rcctl prints NO for a disabled daemon
+        apmd_enabled=sys.run(["rcctl", "get", "apmd", "status"], check=False).rc == 0,
     )

@@ -79,11 +79,29 @@ class PlanTest(unittest.TestCase):
         c = plan_changes(box(), Wanted(auto_sleep=("suspend", 5)), CONF)
         self.assertEqual([s.do for s in c.steps], [["rcctl", "set", "apmd", "flags", "-A -z 5"], ["rcctl", "restart", "apmd"]])
         self.assertIsNone(c.steps[1].undo)
+        # a failed restart must leave apmd running with the old flags
+        self.assertEqual(c.steps[0].undo, ["sh", "-c", "rcctl set apmd flags -A && rcctl restart apmd"])
         self.assertEqual(c.files, [])
 
     def test_auto_sleep_enables_apmd(self):
-        c = plan_changes(box(apmd_running=False, apmd_flags=""), Wanted(auto_sleep=("hibernate", 3)), CONF)
+        c = plan_changes(box(apmd_running=False, apmd_enabled=False, apmd_flags=""), Wanted(auto_sleep=("hibernate", 3)), CONF)
         self.assertEqual([s.do[:2] for s in c.steps], [["rcctl", "set"], ["rcctl", "enable"], ["rcctl", "restart"]])
+        self.assertEqual(c.steps[0].undo, ["rcctl", "set", "apmd", "flags", ""])  # nothing was running to restart
+
+    def test_auto_sleep_enabled_but_stopped_is_not_enabled_again(self):
+        c = plan_changes(box(apmd_running=False, apmd_flags=""), Wanted(auto_sleep=("hibernate", 3)), CONF)
+        self.assertEqual([s.do[:2] for s in c.steps], [["rcctl", "set"], ["rcctl", "restart"]])
+
+    def test_setperf_goes_after_perfpolicy_in_the_file(self):
+        c = plan_changes(box(), Wanted(perfpolicy="manual", setperf=30), "hw.setperf=50\n")
+        lines = c.files[0].content.splitlines()
+        policy = lines.index("hw.perfpolicy=manual")
+        self.assertLess(policy, lines.index("hw.setperf=30"))
+        self.assertIn("# disabled by powerstar: hw.setperf=50", lines)
+
+    def test_conf_mode_is_kept(self):
+        c = plan_changes(box(), Wanted(chargestop=90), CONF, 0o600)
+        self.assertEqual(c.files[0].mode, 0o600)
 
     def test_auto_sleep_merged_with_perf(self):
         c = plan_changes(box(), Wanted(perfpolicy="high", auto_sleep=("suspend", 5)), CONF)

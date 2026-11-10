@@ -187,8 +187,8 @@ class Preferences(QDialog):
         self.power_button.currentIndexChanged.connect(self._update_reboot_note)
         form.addRow("Sleep automatically", self.auto_mode)
         form.addRow("when battery is below", self.auto_percent)
-        if not self.state.apmd_running:
-            form.addRow(QLabel("apmd is not running; Apply will enable it"))
+        if not self.state.apmd_enabled:
+            form.addRow(QLabel("apmd is not enabled; Apply will enable it"))
         return tab
 
     def _general_tab(self) -> QWidget:
@@ -294,7 +294,13 @@ class Preferences(QDialog):
     def apply(self) -> None:
         wanted = self.wanted()
         try:
-            change = plan_changes(self.state, wanted, self.sys.read_file(SYSCTL_CONF) or "")
+            mode = self.sys.file_mode(SYSCTL_CONF)
+            text = self.sys.read_file(SYSCTL_CONF)
+            if text is None:
+                if mode is not None:  # present but unreadable: writing our lines alone would drop the rest
+                    raise PowerStarError(f"Cannot read {SYSCTL_CONF}", detail="It is not readable by this user.")
+                text = ""
+            change = plan_changes(self.state, wanted, text, 0o644 if mode is None else mode)
         except PowerStarError as e:
             self.status.setText(f"{e.message}. {e.detail}".strip())
             return

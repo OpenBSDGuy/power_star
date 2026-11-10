@@ -1,5 +1,7 @@
 """Run commands and read files; everything here works without root."""
 
+import os
+import stat
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +28,13 @@ class System:
         if check and r.rc != 0:
             raise PowerStarError(f"{argv[0]} failed", detail=r.err)
         return r
+
+    def file_mode(self, path: Path) -> int | None:
+        """Permission bits of an existing file (works without read access), None if it does not exist."""
+        try:
+            return stat.S_IMODE(os.stat(path).st_mode)
+        except FileNotFoundError:
+            return None
 
     def read_file(self, path: Path) -> str | None:
         try:

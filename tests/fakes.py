@@ -4,9 +4,10 @@ from powerstar.system import Result, System
 class FakeSystem(System):
     """Records commands; answers from `responses`, keyed by the exact argv tuple."""
 
-    def __init__(self, responses: dict[tuple[str, ...], "Result | str | Exception"] | None = None, files: dict | None = None):
+    def __init__(self, responses: dict[tuple[str, ...], "Result | str | Exception"] | None = None, files: dict | None = None, modes: dict | None = None):
         self.responses = responses or {}
         self.files = files or {}
+        self.modes = modes or {}
         self.calls: list[list[str]] = []
 
     def run(self, argv, check=True):
@@ -23,3 +24,6 @@ class FakeSystem(System):
 
     def read_file(self, path):
         return self.files.get(str(path))
+
+    def file_mode(self, path):
+        return self.modes.get(str(path))

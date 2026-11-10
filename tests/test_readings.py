@@ -55,6 +55,7 @@ class ReadStateTest(unittest.TestCase):
                 ("sysctl", *SYSCTL_KEYS): Result(1, sysctl, "sysctl: second level name battery in hw.battery is invalid\n"),
                 ("rcctl", "check", "apmd"): "apmd(ok)\n",
                 ("rcctl", "get", "apmd", "flags"): "-A\n",
+                ("rcctl", "get", "apmd", "status"): "",
             },
             {"/var/run/dmesg.boot": DMESG},
         )
@@ -64,6 +65,13 @@ class ReadStateTest(unittest.TestCase):
         self.assertEqual(st.apm.percent, 82)
         self.assertEqual((st.apmd_running, st.apmd_flags, st.cpu_types), (True, "-A", {"P", "S"}))
         self.assertEqual(st.sensors.batteries[0].model, "01AV421")
+
+    def test_apmd_disabled(self):
+        f = self.fake("0\n82\nunknown\n1\n1\n", section("hw"))
+        f.responses[("rcctl", "get", "apmd", "flags")] = "NO\n"
+        f.responses[("rcctl", "get", "apmd", "status")] = Result(1, "", "")
+        st = read_state(f)
+        self.assertEqual((st.apmd_flags, st.apmd_enabled), ("", False))
 
     def test_apm_failure(self):
         st = read_state(self.fake(PowerStarError("apm failed"), section("hw")))

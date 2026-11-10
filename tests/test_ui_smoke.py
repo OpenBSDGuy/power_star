@@ -44,6 +44,7 @@ def make_sys(sysctl_out=None, apmd_ok=True):
             ("sysctl", *SYSCTL_KEYS): Result(1, sysctl_out, "sysctl: invalid\n"),
             ("rcctl", "check", "apmd"): Result(0 if apmd_ok else 1, "", ""),
             ("rcctl", "get", "apmd", "flags"): "-A\n",
+            ("rcctl", "get", "apmd", "status"): Result(0, "", ""),
             ("xbacklight", "-get"): "36.2\n",
         },
         {"/var/run/dmesg.boot": DMESG, "/etc/sysctl.conf": "hw.battery.chargestop=80\n"},
@@ -96,6 +97,31 @@ class PreferencesTest(unittest.TestCase):
         self.assertFalse(any("chargestart" in l for l in change.describe()))
         self.assertEqual(shown[0], change.describe())
         self.assertTrue(p.apply_button.isEnabled())
+
+    def test_unreadable_sysctl_conf_refuses_to_apply(self):
+        sys = make_sys()
+        sys.files["/etc/sysctl.conf"] = None  # PermissionError reads as None
+        sys.modes["/etc/sysctl.conf"] = 0o600
+        p = self.prefs(sys)
+        p.chargestop.setValue(90)
+        p.apply()
+        self.assertEqual(self.elevator.changes, [])
+        self.assertIn("Cannot read /etc/sysctl.conf", p.status.text())
+        self.assertIn("not readable", p.status.text())
+
+    def test_missing_sysctl_conf_is_created_and_mode_is_kept(self):
+        sys = make_sys()
+        del sys.files["/etc/sysctl.conf"]
+        p = self.prefs(sys)
+        p.chargestop.setValue(90)
+        p.apply()
+        self.assertEqual(self.elevator.changes[0].files[0].mode, 0o644)
+        sys.files["/etc/sysctl.conf"] = "hw.battery.chargestop=80\n"
+        sys.modes["/etc/sysctl.conf"] = 0o640
+        p = self.prefs(sys)
+        p.chargestop.setValue(90)
+        p.apply()
+        self.assertEqual(self.elevator.changes[0].files[0].mode, 0o640)
 
     def test_declined_confirmation_runs_nothing(self):
         p = self.prefs(confirm=lambda lines: False)
