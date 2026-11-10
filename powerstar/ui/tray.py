@@ -54,8 +54,9 @@ class Tray(QSystemTrayIcon):
             act.setData(mode)
             self.perf_group.addAction(act)
             act.triggered.connect(lambda _=False, m=mode: self._set_perf(m))
-        self.menu.addAction("Suspend").triggered.connect(lambda: self._sleep("zzz"))
-        self.menu.addAction("Hibernate").triggered.connect(lambda: self._sleep("ZZZ"))
+        self.sleep_actions = [self.menu.addAction("Suspend"), self.menu.addAction("Hibernate")]
+        self.sleep_actions[0].triggered.connect(lambda: self._sleep("zzz"))
+        self.sleep_actions[1].triggered.connect(lambda: self._sleep("ZZZ"))
         self.menu.addSeparator()
         self.menu.addAction("Preferences…").triggered.connect(self.open_prefs)
         self.menu.addAction("Quit").triggered.connect(QApplication.quit)
@@ -99,6 +100,7 @@ class Tray(QSystemTrayIcon):
         problem = session.perf_problem(state)
         for act in self.info_actions:
             self.menu.removeAction(act)
+            act.deleteLater()
         lines = info_lines(state) + ([problem] if problem else [])
         self.info_actions = [QAction(text, self.menu) for text in lines]
         for act in self.info_actions:
@@ -106,26 +108,33 @@ class Tray(QSystemTrayIcon):
         self.menu.insertActions(self.perf_menu.menuAction(), self.info_actions)
         self.perf_menu.setEnabled(problem is None)
         self.perf_menu.setToolTip(problem or "")
+        for act in self.sleep_actions:
+            act.setEnabled(problem is None)
+            act.setToolTip(problem or "")
         for act in self.perf_group.actions():
             act.setChecked(bool(state.apm and state.apm.perf_auto) and act.data() == "A")
 
     def _set_perf(self, mode: str) -> None:
-        try:
-            session.set_perf(self.sys, mode)
-        except PowerStarError as e:
-            self.showMessage("Power Star", f"{e.message}: {e.detail}")
+        worker.run_async(lambda: session.set_perf(self.sys, mode), lambda r: self._perf_set(mode, r))
+
+    def _perf_set(self, mode: str, result) -> None:
+        if isinstance(result, BaseException):
+            self._failed(result)
             return
         self.cfg["menu_perf"] = mode
         userconfig.save(self.cfg)
         self.refresh()
 
+    def _failed(self, e: BaseException) -> None:
+        self.showMessage("Power Star", f"{e.message}: {e.detail}" if isinstance(e, PowerStarError) else str(e))
+
     def _sleep(self, cmd: str) -> None:
-        worker.run_async(lambda: self.sys.run([cmd]), lambda r: None)
+        worker.run_async(lambda: self.sys.run([cmd]), lambda r: self._failed(r) if isinstance(r, BaseException) else None)
 
     def open_prefs(self) -> None:
         if self.state is None:
             return
-        if self.prefs is None or not self.prefs.isVisible():
+        if self.prefs is None or not (self.prefs.isVisible() or self.prefs.applying):
             self.prefs = Preferences(self.state, self.cfg, self.sys, self.elevator)
             self.prefs.applied.connect(self.refresh)
             self.prefs.settings_changed.connect(self.settings_changed)
@@ -145,4 +154,5 @@ def run() -> int:
     session.reapply(system, cfg)
     tray = Tray(system, Elevator(system), cfg)
     tray.show()
+    app.aboutToQuit.connect(worker.wait_all)
     return app.exec()

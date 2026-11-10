@@ -28,3 +28,9 @@ def run_async(fn: Callable, done: Callable) -> None:
     job.finished.connect(lambda: _running.discard(job))
     _running.add(job)
     job.start()
+
+
+def wait_all() -> None:
+    """Let running jobs finish (briefly) so no QThread is destroyed while running."""
+    for job in list(_running):
+        job.wait(2000)

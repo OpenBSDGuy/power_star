@@ -16,12 +16,24 @@ def default_path() -> Path:
     return Path(base) / "powerstar" / "config.toml"
 
 
+LIMITS = {"poll_seconds": (2, 60), "low_percent": (1, 50), "screen_off_minutes": (0, None), "brightness": (0, 100)}
+
+
 def load(path: Path | None = None) -> dict:
     try:
         with open(path or default_path(), "rb") as f:
-            return {**DEFAULTS, **tomllib.load(f)}
+            cfg = {**DEFAULTS, **tomllib.load(f)}
     except (OSError, tomllib.TOMLDecodeError):
         return dict(DEFAULTS)
+    for key, (lo, hi) in LIMITS.items():
+        v = cfg[key]
+        if v is None:
+            continue
+        if isinstance(v, bool) or not isinstance(v, int):
+            cfg[key] = DEFAULTS[key]
+        else:
+            cfg[key] = max(lo, v if hi is None else min(hi, v))
+    return cfg
 
 
 def save(cfg: dict, path: Path | None = None) -> None:

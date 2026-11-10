@@ -57,6 +57,12 @@ class Elevator:
         self.sys = sys
         self.run_cmd = run_cmd or (lambda argv: sys.run(argv, check=False))
 
+    def available(self) -> str | None:
+        """A reason when there is no way to ask for root at all; doas is in the base system."""
+        if not (shutil.which("doas") or shutil.which("pkexec")):
+            return "Neither doas nor pkexec is installed"
+        return None
+
     def _try(self, argv: list[str]) -> Result:
         try:
             return self.run_cmd(argv)

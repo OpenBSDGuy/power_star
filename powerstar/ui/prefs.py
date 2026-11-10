@@ -61,6 +61,8 @@ class Preferences(QDialog):
         self.state, self.cfg, self.sys, self.elevator = state, cfg, sys, elevator
         self.confirm = confirm or (lambda lines: confirm_box(self, lines))
         self.base: dict = {}
+        self.applying = False
+        self.root_problem = elevator.available()
         self.tabs = QTabWidget()
         self.tabs.addTab(self._battery_tab(), "Battery")
         self.tabs.addTab(self._performance_tab(), "Performance")
@@ -79,16 +81,31 @@ class Preferences(QDialog):
         layout.addWidget(self.status)
         layout.addWidget(self.buttons)
         self._populate()
+        if self.root_problem:
+            self.apply_button.setEnabled(False)
+            self.apply_button.setToolTip(self.root_problem)
+            self.status.setText(self.root_problem)
+
+    def reject(self) -> None:  # Esc and the window's close button; a running Apply must not be abandoned
+        if not self.applying:
+            super().reject()
 
     # ---- building the tabs
 
     def _row(self, form: QFormLayout, label: str, widget: QWidget, key: str | None) -> None:
         """Add a row; a sysctl key missing from the state disables the widget with a reason."""
+        apm = self.state.apm
+        no_battery = apm is None or apm.state == 4 or not self.state.sensors.batteries
+        reason = None
         if key is not None and key not in self.state.sysctl:
+            reason = UNSUPPORTED
+        elif key is not None and key.startswith("hw.battery.") and no_battery:
+            reason = "No battery"
+        if reason:
             widget.setEnabled(False)
             box = QHBoxLayout()
             box.addWidget(widget)
-            box.addWidget(QLabel(UNSUPPORTED))
+            box.addWidget(QLabel(reason))
             form.addRow(label, box)
         else:
             form.addRow(label, widget)
@@ -151,14 +168,11 @@ class Preferences(QDialog):
         self.brightness = QSlider(Qt.Orientation.Horizontal)
         self.brightness.setRange(1, 100)
         self.brightness.setTracking(False)  # one xbacklight call per release, not per pixel
-        level = session.get_brightness(self.sys)
-        if level is None:
-            self.brightness.setEnabled(False)
-            form.addRow("Brightness", self._with_note(self.brightness, "Not supported on this machine"))
-        else:
-            self.brightness.setValue(level)
-            form.addRow("Brightness", self.brightness)
+        self.brightness.setEnabled(False)  # until xbacklight has answered
+        self.brightness_note = QLabel("Reading…")
+        form.addRow("Brightness", self._with_note(self.brightness, self.brightness_note))
         self.brightness.valueChanged.connect(lambda v: self._user_setting("brightness", v, session.set_brightness))
+        worker.run_async(lambda: session.get_brightness(self.sys), self._got_brightness)
         self.screen_off = spin(0, 240, " min")
         self.screen_off.setSpecialValueText("Never")
         self.screen_off.setKeyboardTracking(False)
@@ -167,10 +181,20 @@ class Preferences(QDialog):
         form.addRow("Turn screen off after", self.screen_off)
         return tab
 
-    def _with_note(self, widget: QWidget, note: str) -> QHBoxLayout:
+    def _got_brightness(self, level) -> None:
+        if not isinstance(level, int):
+            self.brightness_note.setText(UNSUPPORTED)
+            return
+        self.brightness.blockSignals(True)  # showing the current level is not a change
+        self.brightness.setValue(level)
+        self.brightness.blockSignals(False)
+        self.brightness.setEnabled(True)
+        self.brightness_note.setText("")
+
+    def _with_note(self, widget: QWidget, note: QLabel) -> QHBoxLayout:
         box = QHBoxLayout()
         box.addWidget(widget)
-        box.addWidget(QLabel(note))
+        box.addWidget(note)
         return box
 
     def _sleep_tab(self) -> QWidget:
@@ -220,12 +244,15 @@ class Preferences(QDialog):
         self.settings_changed.emit()
 
     def _user_setting(self, key: str, value: int, action) -> None:
-        try:
-            action(self.sys, value)
-        except PowerStarError as e:
-            self.status.setText(f"{e.message}: {e.detail}")
-            return
-        self._save(key, value)
+        worker.run_async(lambda: action(self.sys, value), lambda r: self._user_done(key, value, r))
+
+    def _user_done(self, key: str, value: int, result) -> None:
+        if isinstance(result, PowerStarError):
+            self.status.setText(f"{result.message}: {result.detail}")
+        elif isinstance(result, BaseException):
+            self.status.setText(str(result))
+        else:
+            self._save(key, value)
 
     # ---- root-backed settings
 
@@ -287,7 +314,8 @@ class Preferences(QDialog):
         return Wanted(**{k: v for k, v in now.items() if v != self.base[k]})
 
     def _busy(self, busy: bool, text: str = "") -> None:
-        self.apply_button.setEnabled(not busy)
+        self.applying = busy
+        self.apply_button.setEnabled(not busy and self.root_problem is None)
         self.close_button.setEnabled(not busy)
         self.status.setText(text)
 

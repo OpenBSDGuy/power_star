@@ -7,10 +7,13 @@ from unittest import mock
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp()  # never touch the real config
 
+from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtGui import QAction
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QLabel
 
-from powerstar import userconfig
+from powerstar import session, userconfig
+from powerstar.errors import PowerStarError
 from powerstar.privileged import Outcome
 from powerstar.readings import SYSCTL_KEYS, read_state
 from powerstar.system import Result
@@ -55,6 +58,9 @@ class FakeElevator:
     def __init__(self):
         self.changes = []
 
+    def available(self):
+        return None
+
     def run(self, change):
         self.changes.append(change)
         return Outcome(True, False, "")
@@ -86,6 +92,44 @@ class PreferencesTest(unittest.TestCase):
         self.assertFalse(p.chargestop.isEnabled())
         self.assertFalse(p.chargemode.isEnabled())
         self.assertTrue(p.lid.isEnabled())
+
+    def test_no_battery_disables_charge_controls_with_reason(self):
+        sys = make_sys()
+        sys.responses[("apm", "-blmaP")] = "4\n-1\nunknown\n1\n1\n"
+        p = self.prefs(sys)
+        self.assertFalse(p.chargestop.isEnabled())
+        self.assertIn("No battery", [l.text() for l in p.tabs.widget(0).findChildren(QLabel)])
+        self.assertTrue(p.lid.isEnabled())
+
+    def test_apply_disabled_without_a_way_to_get_root(self):
+        self.elevator = FakeElevator()
+        self.elevator.available = lambda: "Neither doas nor pkexec is installed"
+        sys = make_sys()
+        p = Preferences(read_state(sys), userconfig.load(Path(os.devnull)), sys, self.elevator, lambda lines: True)
+        self.assertFalse(p.apply_button.isEnabled())
+        self.assertIn("doas", p.status.text())
+        p._busy(False)
+        self.assertFalse(p.apply_button.isEnabled())
+
+    def test_close_and_escape_ignored_while_applying(self):
+        p = self.prefs()
+        p.show()
+        p._busy(True, "x")
+        QTest.keyClick(p, Qt.Key.Key_Escape)
+        p.close()
+        self.assertTrue(p.isVisible())
+        p._busy(False)
+        p.close()
+        self.assertFalse(p.isVisible())
+
+    def test_xbacklight_and_xset_run_off_the_gui_thread(self):
+        sys = make_sys()
+        queued = []
+        with mock.patch("powerstar.ui.worker.run_async", lambda fn, done: queued.append((fn, done))):
+            p = Preferences(read_state(sys), userconfig.load(Path(os.devnull)), sys, FakeElevator(), lambda lines: True)
+            p._user_setting("brightness", 50, session.set_brightness)
+        self.assertEqual(len(queued), 2)  # the initial -get and the -set, neither run yet
+        self.assertEqual([c for c in sys.calls if c[0] == "xbacklight"], [])
 
     def test_apply_sends_only_changed_values_after_confirmation(self):
         shown = []
@@ -152,8 +196,67 @@ class TrayTest(unittest.TestCase):
     def test_performance_submenu_disabled_without_apmd(self):
         self.assertFalse(self.tray(apmd_ok=False).perf_menu.isEnabled())
 
+    def test_suspend_and_hibernate_disabled_with_the_same_reason(self):
+        t = self.tray(apmd_ok=False)
+        self.assertEqual([a.isEnabled() for a in t.sleep_actions], [False, False])
+        self.assertEqual(t.sleep_actions[0].toolTip(), "apmd is not running")
+
+    def test_info_actions_do_not_pile_up(self):
+        t = self.tray()
+        for _ in range(5):
+            t.refresh()
+            QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        n = len(t.menu.findChildren(QAction))
+        for _ in range(20):
+            t.refresh()
+            QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.assertEqual(len(t.menu.findChildren(QAction)), n)
+
+    def test_sleep_failure_is_shown(self):
+        t = self.tray()
+        t.sys.responses[("zzz",)] = PowerStarError("zzz failed", detail="not permitted")
+        shown = []
+        t.showMessage = lambda title, text, *a: shown.append(text)
+        t._sleep("zzz")
+        self.assertEqual(shown, ["zzz failed: not permitted"])
+
+    def test_set_perf_failure_is_shown_and_success_saved(self):
+        t = self.tray()
+        shown = []
+        t.showMessage = lambda title, text, *a: shown.append(text)
+        t.sys.responses[("apm", "-H")] = PowerStarError("apm failed", detail="denied")
+        t._set_perf("H")
+        self.assertEqual(shown, ["apm failed: denied"])
+        self.assertIsNone(t.cfg["menu_perf"])
+        t.sys.responses[("apm", "-L")] = ""
+        with mock.patch("powerstar.userconfig.save"):
+            t._set_perf("L")
+        self.assertEqual(t.cfg["menu_perf"], "L")
+
+    def test_open_prefs_reuses_the_window(self):
+        t = self.tray()
+        t.open_prefs()
+        first = t.prefs
+        t.open_prefs()
+        self.assertIs(t.prefs, first)
+        first._busy(True)  # a hidden window mid-Apply is still the one to show
+        first.hide()
+        t.open_prefs()
+        self.assertIs(t.prefs, first)
+        self.addCleanup(first.close)
+
 
 class WorkerTest(unittest.TestCase):
+    def test_wait_all_lets_running_jobs_finish(self):
+        import time
+
+        from powerstar.ui.worker import run_async, wait_all
+
+        done = []
+        run_async(lambda: (time.sleep(0.2), done.append(1)), lambda r: None)
+        wait_all()
+        self.assertEqual(done, [1])
+
     def test_result_and_exception_come_back_on_the_gui_thread(self):
         import threading
 

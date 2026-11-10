@@ -132,6 +132,13 @@ class ElevatorTest(unittest.TestCase):
         self.assertFalse(out.ok)
         self.assertFalse(out.cancelled)
 
+    def test_available(self):
+        e = Elevator(FakeSystem())
+        with mock.patch("powerstar.privileged.shutil.which", return_value=None):
+            self.assertIn("doas", e.available())
+        with mock.patch("powerstar.privileged.shutil.which", side_effect=lambda n: "/x/doas" if n == "doas" else None):
+            self.assertIsNone(e.available())
+
     def test_xterm_command_ignores_hup(self):
         seen = []
 
