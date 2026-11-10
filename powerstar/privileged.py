@@ -33,7 +33,11 @@ def build_script(change: Change, staged: dict[str, str], backup_dir: str) -> str
     for f in change.files:
         out.append(f"install -o root -g wheel -m {f.mode:04o} {q(staged[f.path])} {q(f.path)} || fail {q('write ' + f.path)}")
     for i, s in enumerate(change.steps, 1):
-        out.append(f"{shlex.join(s.do)} || fail {q(s.label)}")
+        if s.do[0] == "sysctl":
+            # OpenBSD's sysctl exits 0 even when a write is rejected; stderr is the only sign
+            out.append(f'e=$({shlex.join(s.do)} 2>&1 >/dev/null); [ -z "$e" ] || fail {q(s.label + ": ")}"$e"')
+        else:
+            out.append(f"{shlex.join(s.do)} || fail {q(s.label)}")
         out.append(f"n={i}")
     return "\n".join(out) + "\n"
 

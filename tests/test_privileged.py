@@ -18,8 +18,9 @@ class ScriptTest(unittest.TestCase):
         bin = self.tmp / "bin"
         bin.mkdir()
         (bin / "install").write_text('#!/bin/sh\nfor a in "$@"; do src="$dst"; dst="$a"; done\ncp "$src" "$dst"\n')
-        for name in ("sysctl", "rcctl"):
-            (bin / name).write_text(f'#!/bin/sh\necho "{name} $*" >> "$LOG"\ncase "$*" in *FAIL*) exit 1;; esac\n')
+        # like OpenBSD's sysctl(8): a rejected write prints to stderr but still exits 0
+        (bin / "sysctl").write_text('#!/bin/sh\necho "sysctl $*" >> "$LOG"\ncase "$*" in *FAIL*) echo "sysctl: hw.x: Invalid argument" >&2;; esac\n')
+        (bin / "rcctl").write_text('#!/bin/sh\necho "rcctl $*" >> "$LOG"\ncase "$*" in *FAIL*) exit 1;; esac\n')
         for f in bin.iterdir():
             f.chmod(0o755)
         self.log = self.tmp / "log"
