@@ -18,16 +18,19 @@ NEEDS_AUTH = ("doas: Authentication required", "doas: Operation not permitted", 
 
 def build_script(change: Change, staged: dict[str, str], backup_dir: str) -> str:
     q = shlex.quote
-    out = ["set -u", f"mkdir -p {q(backup_dir)}", "n=0"]
+    out = ["trap '' HUP", "set -u", f"mkdir -p {q(backup_dir)}", "n=0"]
     for i, f in enumerate(change.files):
-        out.append(f"if [ -e {q(f.path)} ]; then cp -p {q(f.path)} {q(backup_dir)}/{i}; had{i}=1; else had{i}=0; fi")
+        out.append(
+            f"if [ -e {q(f.path)} ]; then cp -p {q(f.path)} {q(backup_dir)}/{i}"
+            f" || {{ echo {q('powerstar: backup failed: ' + f.path)} >&2; exit 1; }}; had{i}=1; else had{i}=0; fi"
+        )
     out.append("rollback() {\n  :")
     for i in range(len(change.steps), 0, -1):
         undo = change.steps[i - 1].undo
         if undo:
             out.append(f"  [ $n -ge {i} ] && {shlex.join(undo)} >/dev/null 2>&1")
     for i, f in enumerate(change.files):
-        out.append(f"  if [ $had{i} = 1 ]; then cp -p {q(backup_dir)}/{i} {q(f.path)}; else rm -f {q(f.path)}; fi")
+        out.append(f"  if [ $had{i} = 1 ]; then cp -p {q(backup_dir)}/{i} {q(f.path)} || echo {q('powerstar: could not restore ' + f.path)} >&2; else rm -f {q(f.path)}; fi")
     out.append("}")
     out.append("fail() { rollback; echo \"powerstar: failed: $1\" >&2; exit 1; }")
     for f in change.files:
@@ -92,7 +95,7 @@ class Elevator:
         log, status = tmp / "log", tmp / "status"
         q = shlex.quote
         cmd = (
-            "echo 'Power Star needs root to change power settings. Enter your doas password.'; "
+            "trap '' HUP; echo 'Power Star needs root to change power settings. Enter your doas password.'; "
             f"doas sh {q(script)} > {q(str(log))} 2>&1; echo $? > {q(str(status))}"
         )
         r = self._try(["xterm", "-T", "Power Star needs root", "-e", "sh", "-c", cmd])

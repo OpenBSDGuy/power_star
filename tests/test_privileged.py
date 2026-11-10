@@ -65,6 +65,32 @@ class ScriptTest(unittest.TestCase):
         self.assertEqual(self.run_script(c).returncode, 1)
         self.assertFalse(target.exists())
 
+    def test_backup_failure_aborts_before_installing(self):
+        target = self.tmp / "sysctl.conf"
+        target.write_text("old\n")
+        (self.tmp / "bin" / "cp").write_text("#!/bin/sh\nexit 1\n")
+        (self.tmp / "bin" / "cp").chmod(0o755)
+        c = Change([FileWrite(str(target), "new\n", 0o644)], [Step(["sysctl", "a=1"], None, "a")])
+        r = self.run_script(c)
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(target.read_text(), "old\n")
+        self.assertEqual(self.logged(), [])
+        self.assertIn(f"powerstar: backup failed: {target}", r.stderr)
+
+    def test_restore_failure_is_reported(self):
+        target = self.tmp / "sysctl.conf"
+        target.write_text("old\n")
+        # the restore is the only cp whose source is in the backup dir
+        (self.tmp / "bin" / "cp").write_text('#!/bin/sh\ncase "$2" in */backup/*) exit 1;; esac\nexec /bin/cp "$@"\n')
+        (self.tmp / "bin" / "cp").chmod(0o755)
+        c = Change([FileWrite(str(target), "new\n", 0o644)], [Step(["sysctl", "FAIL"], None, "bad")])
+        r = self.run_script(c)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn(f"powerstar: could not restore {target}", r.stderr)
+
+    def test_script_ignores_hup(self):
+        self.assertTrue(build_script(Change(), {}, "/b").startswith("trap '' HUP\n"))
+
     def test_quoting(self):
         c = Change([], [Step(["sysctl", "k=a b'c"], None, "q")])
         self.assertEqual(self.run_script(c).returncode, 0)
@@ -105,6 +131,17 @@ class ElevatorTest(unittest.TestCase):
         out, _ = self.elevate({"doas": self.AUTH, "xterm": Result(0, "", "")}, pkexec=False, xterm_writes_status="1\n")
         self.assertFalse(out.ok)
         self.assertFalse(out.cancelled)
+
+    def test_xterm_command_ignores_hup(self):
+        seen = []
+
+        def run_cmd(argv):
+            seen.append(argv[-1])
+            return Result(0, "", "")
+
+        with mock.patch("powerstar.privileged.shutil.which", return_value=None):
+            Elevator(FakeSystem(), lambda a: self.AUTH if a[0] == "doas" else run_cmd(a)).run(self.CHANGE)
+        self.assertTrue(seen[0].startswith("trap '' HUP; "))
 
     def test_pkexec_cancelled(self):
         out, calls = self.elevate({"doas": self.AUTH, "pkexec": Result(126, "", "")})
