@@ -16,6 +16,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.version:
         print(f"powerstar {__version__}")
         return 0
+    if args.man or args.install_man:
+        from powerstar import manpages
+
+        return manpages.view() if args.man else manpages.install()
     if importlib.util.find_spec("PyQt6") is None:
         print(
             "PyQt6 is missing. Install it with:\n"

@@ -1,0 +1,249 @@
+.Dd November 10, 2026
+.Dt POWERSTAR 1
+.Os
+.Sh NAME
+.Nm powerstar
+.Nd system tray power manager for OpenBSD
+.Sh SYNOPSIS
+.Nm
+.Op Fl \-version | \-man | \-install\-man
+.Sh DESCRIPTION
+.Nm
+puts a battery icon in the system tray of an X session and gives one
+place to see and change every power setting that
+.Ox
+exposes through
+.Xr apm 8 ,
+.Xr apmd 8 ,
+.Xr sysctl 8 ,
+.Xr xbacklight 1
+and
+.Xr xset 1 .
+Settings that need root are saved where
+.Ox
+keeps them, so they survive a reboot.
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl \-version
+Print the version and exit.
+.It Fl \-man
+Show this manual page with
+.Xr man 1
+without installing it.
+.It Fl \-install\-man
+Copy this page to
+.Pa /usr/local/man/man1
+and run
+.Xr makewhatis 8 ,
+using
+.Xr doas 1 .
+.El
+.Pp
+With no option,
+.Nm
+starts in the tray.
+.Ss Tray icon
+The icon shows the charge level, a lightning bolt while charging and a
+plug while on external power without charging.
+It turns orange below 30% and red at 10% or less.
+Hovering shows the percentage, the status and the time left (or the time
+until full while charging), as reported by
+.Xr apm 8 .
+A notification is shown once when the battery drops to the low level set
+under General.
+Clicking the icon opens Preferences.
+.Ss Menu
+The right-click menu shows the status, the health and cycle count of each
+battery, the CPU speed, temperature and fan, and the current performance
+mode.
+The Performance submenu switches between Automatic, High performance and
+Power saving with
+.Ic apm Fl A ,
+.Fl H
+and
+.Fl L .
+This needs no password, but it lasts only until the next reboot;
+.Nm
+re-applies the last choice each time it starts.
+The permanent default is set in Preferences.
+The submenu is disabled when
+.Xr apmd 8
+is not running or
+.Pa /var/run/apmdev
+is not accessible (it is open to the wheel group).
+Suspend and Hibernate run
+.Xr zzz 8
+and
+.Xr ZZZ 8 .
+.Ss Preferences
+Controls the machine does not support are disabled with a reason.
+Changes in the Battery, Performance and Sleep & buttons tabs need root:
+Apply lists the files and commands first, then applies the values now and
+saves them for boot.
+.Bl -tag -width Ds
+.It Battery
+Charge mode, start and stop thresholds:
+.Va hw.battery.chargemode ,
+.Va hw.battery.chargestart ,
+.Va hw.battery.chargestop .
+Per battery: model, health (last full capacity against design capacity),
+discharge cycles, rate and voltage from
+.Va hw.sensors .
+.It Performance
+Policy on external power and on battery,
+.Va hw.perfpolicy
+(for example
+.Dq high,auto ) ;
+CPU speed in manual mode,
+.Va hw.setperf ;
+and the CPU types the scheduler avoids,
+.Va hw.blockcpu :
+hyper-threads (S) and, where the machine has them, performance (P),
+efficiency (E) and low-power (L) cores.
+A choice that would block every core type is refused, since it leaves one
+CPU running.
+.It Display
+Brightness with
+.Xr xbacklight 1
+and turning the screen off after a number of minutes with
+.Xr xset 1
+DPMS.
+These belong to the X session, so they are stored in the user's
+configuration and applied each time
+.Nm
+starts.
+.It Sleep & buttons
+What closing the lid and pressing the power button do,
+.Va machdep.lidaction
+and
+.Va machdep.pwraction
+(see
+.Xr acpibtn 4 ) ,
+and automatic suspend or hibernate at a battery percentage
+.Pq Xr apmd 8 Fl z No and Fl Z .
+Powering off from the button also needs
+.Va hw.allowpowerdown=1 ,
+which can only change at boot, so that choice takes effect after a reboot.
+.It General
+Show the percentage on the icon, the low battery notification and its
+level, and how often the status is read.
+.El
+.Ss How settings are saved
+.Bl -bullet
+.It
+.Xr sysctl 8
+values are set now and written to
+.Pa /etc/sysctl.conf .
+Only the line for the changed key is replaced; a new key is appended below
+a
+.Dq # added by powerstar
+comment.
+Every other line is kept as it was.
+.It
+.Va hw.smt
+is a deprecated alias of the S letter of
+.Va hw.blockcpu .
+When the CPU types are saved, an
+.Va hw.smt
+line is commented out with
+.Dq # disabled by powerstar:
+so the two lines do not fight at boot.
+.It
+.Xr apmd 8
+flags are changed with
+.Xr rcctl 8 .
+Saving a performance policy removes
+.Fl A ,
+.Fl H
+or
+.Fl L
+from the flags, because they would override
+.Va hw.perfpolicy
+when apmd starts.
+.It
+If any step fails, the files are restored and the values already changed
+are set back.
+.El
+.Sh AUTHORISATION
+.Nm
+never asks for, sees or stores a password.
+For each Apply it writes one shell script and runs it as root, trying in
+order:
+.Bl -enum
+.It
+.Ic doas Fl n ,
+which works without a prompt only if
+.Xr doas.conf 5
+allows it.
+.It
+.Xr pkexec 1 ,
+when polkit is installed and the desktop runs a polkit agent, which shows
+its own password dialog.
+.It
+An
+.Xr xterm 1
+running
+.Xr doas 1 ,
+so the password goes into doas's own prompt.
+.El
+.Pp
+Because the script is run with
+.Xr sh 1 ,
+the only
+.Xr doas.conf 5
+rule that removes the prompt is
+.Dl permit nopass <user> cmd sh
+which gives that user password-free root.
+It works, but it is not recommended.
+.Pp
+The
+.Ic doas persist
+option does not help: it is tied to a terminal, and each Apply gets a new
+one.
+.Sh STARTING AT LOGIN
+For
+.Xr i3 1 ,
+add to
+.Pa ~/.config/i3/config :
+.Dl exec --no-startup-id powerstar
+For a plain X session, add to
+.Pa ~/.xsession
+before the window manager starts:
+.Dl powerstar &
+For Xfce, add it under Session and Startup, Application Autostart.
+.Sh FILES
+.Bl -tag -width Ds -compact
+.It Pa ~/.config/powerstar/config.toml
+brightness, screen off time, the last menu performance mode and the
+General options
+.It Pa /etc/sysctl.conf
+saved
+.Xr sysctl 8
+values
+.It Pa /etc/rc.conf.local
+.Xr apmd 8
+flags, written by
+.Xr rcctl 8
+.El
+.Sh UNINSTALL
+.Dl pipx uninstall powerstar
+.Dl doas rm /usr/local/man/man1/powerstar.1
+.Dl doas makewhatis /usr/local/man
+Settings saved in
+.Pa /etc/sysctl.conf
+and the apmd flags stay; edit them by hand to undo them.
+.Sh SEE ALSO
+.Xr doas 1 ,
+.Xr pkexec 1 ,
+.Xr xbacklight 1 ,
+.Xr xset 1 ,
+.Xr xterm 1 ,
+.Xr acpibtn 4 ,
+.Xr doas.conf 5 ,
+.Xr apm 8 ,
+.Xr apmd 8 ,
+.Xr rcctl 8 ,
+.Xr sysctl 8
+.Sh AUTHORS
+.An Kasra Madadipouya
