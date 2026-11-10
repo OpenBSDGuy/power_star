@@ -89,6 +89,7 @@ class PreferencesTest(unittest.TestCase):
         p = self.prefs()
         cell = lambda: p.battery_table.item(0, 1).text()
         self.assertEqual(p.battery_table.item(0, 0).text(), "acpibat0 (01AV421)")
+        self.assertEqual(p.battery_table.item(0, 3).text(), "battery idle")  # State right after Health
         self.assertEqual(cell(), "97% (18.11 Wh)")
         state = read_state(make_sys())
         state.sensors.batteries[0].remaining_wh = 9.35

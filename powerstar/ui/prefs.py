@@ -43,7 +43,7 @@ def confirm_box(parent, lines: list[str]) -> bool:
     return QMessageBox.question(parent, "Confirm changes", text) == QMessageBox.StandardButton.Yes
 
 
-BATTERY_COLUMNS = ["Battery", "Charge", "Health", "Last full / design", "Cycles", "Rate", "Voltage", "State"]
+BATTERY_COLUMNS = ["Battery", "Charge", "Health", "State", "Last full / design", "Cycles", "Rate", "Voltage"]
 
 
 def split_policy(policy: str) -> tuple[str, str]:
@@ -130,9 +130,9 @@ class Preferences(QDialog):
         self.battery_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.battery_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.battery_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        # size to the contents: the whole table is always visible, never scrolled
+        # size to the contents; scroll sideways only when the window is narrower than the table
         self.battery_table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
-        self.battery_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.battery_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.battery_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         form.addRow(self.battery_table)
         self.show_batteries(self.state)
@@ -145,14 +145,18 @@ class Preferences(QDialog):
         pct = lambda v: "?" if v is None else f"{v}%"
         rows = [
             [f"{b.name} ({b.model})" if b.model else b.name, f"{pct(b.charge_percent)} ({fmt(b.remaining_wh, 'Wh')})",
-             pct(b.health_percent), f"{fmt(b.last_full_wh, 'Wh')} / {fmt(b.design_wh, 'Wh')}", fmt(b.cycles, ""),
-             fmt(b.rate_w, "W"), fmt(b.voltage, "V"), b.status or "?"]
+             pct(b.health_percent), b.status or "?", f"{fmt(b.last_full_wh, 'Wh')} / {fmt(b.design_wh, 'Wh')}",
+             fmt(b.cycles, ""), fmt(b.rate_w, "W"), fmt(b.voltage, "V")]
             for b in state.sensors.batteries
         ] or [["No battery"] + [""] * (len(BATTERY_COLUMNS) - 1)]  # fmt: skip
         table.setRowCount(len(rows))
         for r, cells in enumerate(rows):
             for c, text in enumerate(cells):
                 table.setItem(r, c, QTableWidgetItem(text))
+        table.resizeRowsToContents()
+        # room for every row plus the sideways scrollbar, so the scrollbar never covers a row
+        table.setMinimumHeight(table.horizontalHeader().sizeHint().height() + sum(table.rowHeight(r) for r in range(len(rows)))
+                               + table.horizontalScrollBar().sizeHint().height() + 2 * table.frameWidth())
 
     def _performance_tab(self) -> QWidget:
         tab = QWidget()
