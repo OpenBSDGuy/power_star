@@ -33,6 +33,7 @@ class ParseTest(unittest.TestCase):
         self.assertEqual((b0.name, b0.health_percent, b0.status, b0.cycles), ("acpibat0", 78, "battery idle", 756))
         self.assertEqual((b0.remaining_wh, b0.rate_w, b0.voltage), (18.11, 0.0, 11.90))
         self.assertEqual(b1.cycles, 380)
+        self.assertEqual((b0.charge_percent, b1.charge_percent), (97, 63))  # 18.11/18.70, 9.32/14.73
         self.assertEqual((s.fan_rpm, s.lid_open, s.cpu_temp), (0, True, 43.0))
 
     def test_cpu_temp_falls_back_to_acpitz(self):

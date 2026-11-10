@@ -85,6 +85,15 @@ class PreferencesTest(unittest.TestCase):
         p = Preferences(state, userconfig.load(Path(os.devnull)), sys, FakeElevator(), lambda lines: True)
         self.assertEqual(set(p.letters), {"S", "P", "E"})
 
+    def test_battery_table_shows_and_refreshes_charge(self):
+        p = self.prefs()
+        cell = lambda: p.battery_grid.itemAtPosition(1, 2).widget().text()
+        self.assertEqual(cell(), "97% (18.11 Wh)")
+        state = read_state(make_sys())
+        state.sensors.batteries[0].remaining_wh = 9.35
+        p.show_batteries(state)
+        self.assertEqual(cell(), "50% (9.35 Wh)")
+
     def test_no_battery_keys_disables_charge_controls(self):
         out = "".join(l + "\n" for l in section("hw").splitlines() if not l.startswith("hw.battery"))
         p = self.prefs(make_sys(out))

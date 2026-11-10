@@ -47,7 +47,7 @@ The tray icon shows the charge level, a lightning bolt while charging and a plug
 
 | Tab            | What it drives                                                                                      |
 |----------------|-----------------------------------------------------------------------------------------------------|
-| Battery        | `hw.battery.chargemode`, `chargestart`, `chargestop`; per-battery health, cycles, rate, voltage     |
+| Battery        | `hw.battery.chargemode`, `chargestart`, `chargestop`; per-battery charge, health, cycles, rate, voltage |
 | Performance    | `hw.perfpolicy` (on AC and on battery), `hw.setperf`, `hw.blockcpu` (hyper-threads, P, E, L cores)  |
 | Display        | Brightness (`xbacklight`) and screen off time (`xset` DPMS)                                         |
 | Sleep & buttons| `machdep.lidaction`, `machdep.pwraction`, automatic suspend or hibernate at a battery % (`apmd -z`, `-Z`) |

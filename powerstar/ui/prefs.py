@@ -118,21 +118,28 @@ class Preferences(QDialog):
         self._row(form, "Charge mode", self.chargemode, "hw.battery.chargemode")
         self._row(form, "Start charging below", self.chargestart, "hw.battery.chargestart")
         self._row(form, "Stop charging at", self.chargestop, "hw.battery.chargestop")
-        grid = QGridLayout()
-        bats = self.state.sensors.batteries
-        for col, head in enumerate(["", "Model", "Health", "Last full / design", "Cycles", "Rate", "Voltage", "State"]):
+        self.battery_grid = QGridLayout()
+        form.addRow(self.battery_grid)
+        self.show_batteries(self.state)
+        return tab
+
+    def show_batteries(self, state: State) -> None:
+        """(Re)fill the battery table; the tray calls this on every status check."""
+        grid = self.battery_grid
+        while grid.count():
+            grid.takeAt(0).widget().deleteLater()
+        for col, head in enumerate(["", "Model", "Charge", "Health", "Last full / design", "Cycles", "Rate", "Voltage", "State"]):
             grid.addWidget(QLabel(f"<b>{head}</b>"), 0, col)
         fmt = lambda v, unit: "?" if v is None else f"{v:g} {unit}"
-        for row, b in enumerate(bats, 1):
-            cells = [b.name, b.model or "?", "?" if b.health_percent is None else f"{b.health_percent}%",
+        pct = lambda v: "?" if v is None else f"{v}%"
+        for row, b in enumerate(state.sensors.batteries, 1):
+            cells = [b.name, b.model or "?", f"{pct(b.charge_percent)} ({fmt(b.remaining_wh, 'Wh')})", pct(b.health_percent),
                      f"{fmt(b.last_full_wh, 'Wh')} / {fmt(b.design_wh, 'Wh')}", fmt(b.cycles, ""),
                      fmt(b.rate_w, "W"), fmt(b.voltage, "V"), b.status or "?"]  # fmt: skip
             for col, text in enumerate(cells):
                 grid.addWidget(QLabel(text), row, col)
-        if not bats:
+        if not state.sensors.batteries:
             grid.addWidget(QLabel("No battery"), 1, 0)
-        form.addRow(grid)
-        return tab
 
     def _performance_tab(self) -> QWidget:
         tab = QWidget()

@@ -37,6 +37,12 @@ class Battery:
     cycles: int | None = None
 
     @property
+    def charge_percent(self) -> int | None:
+        if self.remaining_wh is None or not self.last_full_wh:
+            return None
+        return round(self.remaining_wh / self.last_full_wh * 100)
+
+    @property
     def health_percent(self) -> int | None:
         if not self.last_full_wh or not self.design_wh:
             return None
