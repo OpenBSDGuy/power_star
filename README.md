@@ -2,7 +2,7 @@
 
 A system tray power manager for OpenBSD. One battery icon in your tray, and one place to see and change what OpenBSD exposes for power: charge thresholds, performance policy, CPU types, brightness, lid and power button actions, automatic suspend. Settings that need root are saved where OpenBSD keeps them, so they survive a reboot.
 
-![Power Star Preferences and tray menu](https://raw.githubusercontent.com/OpenBSDGuy/power_star/master/docs/screenshot.png)
+![Power Star Preferences and tray menu](docs/screenshot.png)
 
 ## Requirements
 
@@ -59,11 +59,11 @@ Apply lists the files and commands first, then applies the values now and saves 
 
 | Performance | Display |
 |-------------|---------|
-| ![Performance tab](https://raw.githubusercontent.com/OpenBSDGuy/power_star/master/docs/screenshot-performance.png) | ![Display tab](https://raw.githubusercontent.com/OpenBSDGuy/power_star/master/docs/screenshot-display.png) |
+| ![Performance tab](docs/screenshot-performance.png) | ![Display tab](docs/screenshot-display.png) |
 
 | Sleep & buttons | General |
 |-----------------|---------|
-| ![Sleep & buttons tab](https://raw.githubusercontent.com/OpenBSDGuy/power_star/master/docs/screenshot-sleep.png) | ![General tab](https://raw.githubusercontent.com/OpenBSDGuy/power_star/master/docs/screenshot-general.png) |
+| ![Sleep & buttons tab](docs/screenshot-sleep.png) | ![General tab](docs/screenshot-general.png) |
 
 ## Starting at login
 
