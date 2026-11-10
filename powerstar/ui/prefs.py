@@ -124,7 +124,7 @@ class Preferences(QDialog):
         return tab
 
     def show_batteries(self, state: State) -> None:
-        """(Re)fill the battery table; the tray calls this on every status check."""
+        """(Re)fill the battery table."""
         grid = self.battery_grid
         while grid.count():
             grid.takeAt(0).widget().deleteLater()
@@ -162,12 +162,22 @@ class Preferences(QDialog):
                 self._row(form, "", self.letters[letter], "hw.blockcpu")
         self.block_problem = QLabel("")
         form.addRow(self.block_problem)
-        sensors = self.state.sensors
-        live = [f"CPU {self.state.sysctl.get('hw.cpuspeed', '?')} MHz"]
+        self.cpu_label = QLabel()
+        form.addRow(self.cpu_label)
+        self.show_cpu(self.state)
+        return tab
+
+    def show_cpu(self, state: State) -> None:
+        sensors = state.sensors
+        live = [f"CPU {state.sysctl.get('hw.cpuspeed', '?')} MHz"]
         live.append("temperature ?" if sensors.cpu_temp is None else f"{sensors.cpu_temp:g} °C")
         live.append("fan ?" if sensors.fan_rpm is None else f"fan {sensors.fan_rpm} RPM")
-        form.addRow(QLabel(", ".join(live)))
-        return tab
+        self.cpu_label.setText(", ".join(live))
+
+    def show_live(self, state: State) -> None:
+        """Refresh the read-only values; the tray calls this on every status check."""
+        self.show_batteries(state)
+        self.show_cpu(state)
 
     def _display_tab(self) -> QWidget:
         tab = QWidget()

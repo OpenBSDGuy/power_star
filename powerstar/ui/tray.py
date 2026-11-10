@@ -88,7 +88,7 @@ class Tray(QSystemTrayIcon):
         self.state = state
         self._show(state)
         if self.prefs is not None and self.prefs.isVisible():
-            self.prefs.show_batteries(state)
+            self.prefs.show_live(state)
         apm = state.apm
         if apm is None or apm.percent is None:
             return

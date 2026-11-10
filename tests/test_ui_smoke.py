@@ -91,8 +91,10 @@ class PreferencesTest(unittest.TestCase):
         self.assertEqual(cell(), "97% (18.11 Wh)")
         state = read_state(make_sys())
         state.sensors.batteries[0].remaining_wh = 9.35
-        p.show_batteries(state)
+        state.sysctl["hw.cpuspeed"] = "1901"
+        p.show_live(state)
         self.assertEqual(cell(), "50% (9.35 Wh)")
+        self.assertTrue(p.cpu_label.text().startswith("CPU 1901 MHz"))
 
     def test_no_battery_keys_disables_charge_controls(self):
         out = "".join(l + "\n" for l in section("hw").splitlines() if not l.startswith("hw.battery"))
