@@ -2,7 +2,7 @@
 
 A system tray power manager for OpenBSD. One battery icon in your tray, and one place to see and change what OpenBSD exposes for power: charge thresholds, performance policy, CPU types, brightness, lid and power button actions, automatic suspend. Settings that need root are saved where OpenBSD keeps them, so they survive a reboot.
 
-![Power Star Preferences and tray menu](https://raw.githubusercontent.com/kasramp/power_star/master/docs/screenshot.png)
+![Power Star Preferences and tray menu](https://raw.githubusercontent.com/OpenBSDGuy/power_star/master/docs/screenshot.png)
 
 ## Requirements
 
@@ -30,7 +30,7 @@ $ powerstar
 ### From source
 
 ```
-$ git clone https://github.com/kasramp/power_star
+$ git clone https://github.com/OpenBSDGuy/power_star
 $ cd power_star
 $ python3 -m venv --system-site-packages venv && . venv/bin/activate
 $ pip install -e .
@@ -54,6 +54,16 @@ The tray icon shows the charge level, a lightning bolt while charging and a plug
 | General        | Percentage on the icon, low battery notification and level, how often the status is read           |
 
 Apply lists the files and commands first, then applies the values now and saves them for boot. Display settings belong to the X session, so they are stored in `~/.config/powerstar/config.toml` and applied each time Power Star starts.
+
+### Screenshots
+
+| Performance | Display |
+|-------------|---------|
+| ![Performance tab](https://raw.githubusercontent.com/OpenBSDGuy/power_star/master/docs/screenshot-performance.png) | ![Display tab](https://raw.githubusercontent.com/OpenBSDGuy/power_star/master/docs/screenshot-display.png) |
+
+| Sleep & buttons | General |
+|-----------------|---------|
+| ![Sleep & buttons tab](https://raw.githubusercontent.com/OpenBSDGuy/power_star/master/docs/screenshot-sleep.png) | ![General tab](https://raw.githubusercontent.com/OpenBSDGuy/power_star/master/docs/screenshot-general.png) |
 
 ## Starting at login
 
