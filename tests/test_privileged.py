@@ -118,3 +118,9 @@ class ElevatorTest(unittest.TestCase):
     def test_no_status_file_is_cancelled(self):
         out, _ = self.elevate({"doas": self.AUTH, "xterm": Result(0, "", "")}, pkexec=False)
         self.assertEqual((out.ok, out.cancelled), (False, True))
+
+    def test_script_error_mentioning_not_permitted_is_not_retried(self):
+        err = "sysctl: hw.battery.chargestart: Operation not permitted\npowerstar: failed: a\n"
+        out, calls = self.elevate({"doas": Result(1, "", err)})
+        self.assertFalse(out.ok)
+        self.assertEqual(calls, ["doas"])

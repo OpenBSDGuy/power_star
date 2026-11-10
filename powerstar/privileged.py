@@ -12,7 +12,8 @@ from powerstar.changes import Change
 from powerstar.errors import PowerStarError
 from powerstar.system import Result, System
 
-NEEDS_AUTH = ("Authentication required", "not permitted", "command not found")
+# doas's own refusals; anything else means the script itself ran
+NEEDS_AUTH = ("doas: Authentication required", "doas: Operation not permitted", "command not found")
 
 
 def build_script(change: Change, staged: dict[str, str], backup_dir: str) -> str:
@@ -62,6 +63,7 @@ class Elevator:
             for i, f in enumerate(change.files):
                 staged[f.path] = str(tmp / f"stage{i}")
                 (tmp / f"stage{i}").write_text(f.content, encoding="utf-8", errors="surrogateescape")
+            (tmp / "backup").mkdir()  # user-owned, so the cleanup below can remove root's backup copies
             script = tmp / "apply.sh"
             script.write_text(build_script(change, staged, str(tmp / "backup")))
             return self._elevate(str(script), tmp)
