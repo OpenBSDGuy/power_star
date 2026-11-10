@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "powerstar"
+version = "0.1.0"
+description = "A system tray power manager for OpenBSD"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Kasra Madadipouya", email = "kasra@madadipouya.com" }]
+keywords = ["openbsd", "apm", "apmd", "battery", "power", "tray", "qt"]
+classifiers = [
+    "Environment :: X11 Applications :: Qt",
+    "Operating System :: POSIX :: BSD :: OpenBSD",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Power (UPS)",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/kasramp/power_star"
+Repository = "https://github.com/kasramp/power_star"
+Issues = "https://github.com/kasramp/power_star/issues"
+
+[project.scripts]
+powerstar = "powerstar.cli:main"
+
+[tool.setuptools]
+packages = ["powerstar", "powerstar.ui"]
+
+[tool.setuptools.package-data]
+powerstar = ["man/*"]
