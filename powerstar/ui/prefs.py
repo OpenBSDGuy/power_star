@@ -65,7 +65,7 @@ class Preferences(QDialog):
         self.tabs.addTab(self._battery_tab(), "Battery")
         self.tabs.addTab(self._performance_tab(), "Performance")
         self.tabs.addTab(self._display_tab(), "Display")
-        self.tabs.addTab(self._sleep_tab(), "Sleep & buttons")
+        self.tabs.addTab(self._sleep_tab(), "Sleep && buttons")  # "&&": a single & marks a shortcut key
         self.tabs.addTab(self._general_tab(), "General")
         self.status = QLabel("")
         self.status.setWordWrap(True)
@@ -129,8 +129,10 @@ class Preferences(QDialog):
         for c in (self.policy_ac, self.policy_bat):
             c.currentIndexChanged.connect(self._update_setperf)
         self.letters: dict[str, QCheckBox] = {}
+        core_types = self.state.cpu_types - {"S"}
         for letter in blockcpu.ORDER:
-            if letter in self.state.cpu_types:
+            # blocking the only core type would leave one CPU, so offer core types only when there are two or more
+            if letter in self.state.cpu_types and (letter == "S" or len(core_types) > 1):
                 self.letters[letter] = QCheckBox(LETTER_LABELS[letter])
                 self.letters[letter].toggled.connect(self._update_block_problem)
                 self._row(form, "", self.letters[letter], "hw.blockcpu")

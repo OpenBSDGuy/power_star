@@ -68,7 +68,15 @@ class PreferencesTest(unittest.TestCase):
 
     def test_five_tabs(self):
         p = self.prefs()
-        self.assertEqual([p.tabs.tabText(i) for i in range(5)], ["Battery", "Performance", "Display", "Sleep & buttons", "General"])
+        self.assertEqual([p.tabs.tabText(i) for i in range(5)], ["Battery", "Performance", "Display", "Sleep && buttons", "General"])
+
+    def test_core_type_boxes_only_with_two_core_types(self):
+        self.assertEqual(set(self.prefs().letters), {"S"})  # the box: only P cores, with SMT
+        sys = make_sys()
+        state = read_state(sys)
+        state.cpu_types = {"P", "E", "S"}
+        p = Preferences(state, userconfig.load(Path(os.devnull)), sys, FakeElevator(), lambda lines: True)
+        self.assertEqual(set(p.letters), {"S", "P", "E"})
 
     def test_no_battery_keys_disables_charge_controls(self):
         out = "".join(l + "\n" for l in section("hw").splitlines() if not l.startswith("hw.battery"))
