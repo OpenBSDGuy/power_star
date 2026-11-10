@@ -11,7 +11,7 @@ class CliTest(unittest.TestCase):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             self.assertEqual(main(["--version"]), 0)
-        self.assertEqual(out.getvalue().strip(), "powerstar 0.1.0")
+        self.assertEqual(out.getvalue().strip(), "powerstar 0.1.1")
 
     def test_missing_pyqt6_prints_install_hint(self):
         err = io.StringIO()
